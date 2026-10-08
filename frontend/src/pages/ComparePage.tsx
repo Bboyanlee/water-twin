@@ -11,6 +11,35 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import InfoModal from '../components/InfoModal';
 import PlantScene, { type ColorMode } from '../three/PlantScene';
 import { FlowNormalizer, fmtNum, sampleStates } from '../lib/vars';
+import SavingsPanel from '../components/SavingsPanel';
+import { downloadTemplate, parseFile, type FlowUnit, type ParsedUpload } from '../engine/upload';
+import type { WorkerMessage, WorkerRequest } from '../engine/worker';
+import type { ControllerId } from '../engine/controllers';
+
+const UPLOAD = '__upload';
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const fmtDate = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+
+/** 在 Web Worker 中以瀏覽器模擬引擎執行上傳資料 */
+function runUploadSimulation(up: ParsedUpload, unit: FlowUnit, controllers: string[], onProgress: (f: number) => void) {
+  return new Promise<Extract<WorkerMessage, { type: 'done' }>>((resolve, reject) => {
+    const w = new Worker(new URL('../engine/worker.ts', import.meta.url), { type: 'module' });
+    w.onmessage = (ev: MessageEvent<WorkerMessage>) => {
+      const m = ev.data;
+      if (m.type === 'progress') onProgress(m.frac);
+      else { w.terminate(); if (m.type === 'done') resolve(m); else reject(new Error(m.message)); }
+    };
+    w.onerror = (e) => { w.terminate(); reject(new Error(e.message || '模擬引擎載入失敗')); };
+    const first = new Date(up.rows[0].t);
+    const req: WorkerRequest = {
+      rows: up.rows.map((r) => ({ ...r, Q: unit === 'm3h' ? r.Q * 24 : r.Q })),
+      controllers: controllers as ControllerId[],
+      engineBase: new URL(`${import.meta.env.BASE_URL}data/engine/`, window.location.href).href,
+      clockOffsetMin: first.getHours() * 60 + first.getMinutes(),
+    };
+    w.postMessage(req);
+  });
+}
 
 interface Props {
   plants: Plant[];
@@ -132,6 +161,27 @@ export default function ComparePage({ plants, currentPlant }: Props) {
   const [showModels, setShowModels] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [phase, setPhase] = useState('');
+  const [upload, setUpload] = useState<ParsedUpload | null>(null);
+  const [uploadName, setUploadName] = useState('');
+  const [uploadErr, setUploadErr] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [flowUnit, setFlowUnit] = useState<FlowUnit>('m3d');
+  const [uploadInfo, setUploadInfo] = useState<{ scale: number; meanQ: number; minutes: number; clockOffsetMin: number } | null>(null);
+  const isUpload = scenario === UPLOAD;
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploadErr(null); setUpload(null); setParsing(true); setUploadName(file.name);
+    try {
+      const p = await parseFile(file);
+      setUpload(p);
+      setFlowUnit(p.flowUnitGuess);
+    } catch (e) {
+      setUploadErr((e as Error).message);
+    } finally {
+      setParsing(false);
+    }
+  };
   useEffect(() => {
     if (!running) return;
     const t0 = Date.now();
@@ -191,6 +241,26 @@ export default function ComparePage({ plants, currentPlant }: Props) {
     setRunning(true);
     setErr(null);
     setPlaying(false);
+    if (isUpload) {
+      try {
+        if (!upload) throw new Error('請先上傳進流資料檔');
+        setPhase('在瀏覽器中模擬您的進流資料…');
+        const res = await runUploadSimulation(upload, flowUnit, [ctrlA, ctrlB], (f) => setPhase(`在瀏覽器中模擬您的進流資料… ${Math.round(f * 100)}%`));
+        const summaries: RunSummary[] = res.runs.map((r, i) => ({ run_id: `upload_${i}`, controller_id: r.controller_id, scenario_id: UPLOAD, kpis: r.kpis }));
+        const states: RunStates[] = res.runs.map((r, i) => ({ run_id: `upload_${i}`, controller_id: r.controller_id, scenario_id: UPLOAD, dt_min: r.dt_min, t_min: r.t_min, series: r.series }));
+        const first = new Date(upload.rows[0].t);
+        setUploadInfo({ scale: res.scale, meanQ: res.meanQ, minutes: res.minutes, clockOffsetMin: first.getHours() * 60 + first.getMinutes() });
+        tRef.current = 0;
+        setResult({ summaries, states });
+        setTick((x) => x + 1);
+        setPlaying(true);
+      } catch (e) {
+        setErr(e as Error);
+      } finally {
+        setRunning(false);
+      }
+      return;
+    }
     try {
       setPhase(IS_STATIC ? '載入預先運算的模擬結果…' : `執行模擬中（2 個控制器 × ${days} 天，每個約 3–8 秒/天）`);
       const res = await api.compare({ plant_id: simPlant.id, scenario_id: scenario, controller_ids: [ctrlA, ctrlB], days });
@@ -240,6 +310,7 @@ export default function ComparePage({ plants, currentPlant }: Props) {
             if (sc) setDays(Math.min(3, sc.default_days || 1));
           }}>
             {scenarios.data?.map((s) => <option key={s.id} value={s.id} title={s.description}>{s.name}</option>)}
+            <option value={UPLOAD}>📂 上傳我的進流資料（Excel）</option>
           </select>
         </label>
         <label><span style={{ color: COLOR_A }}>■</span> {t.compare.controllerA}
@@ -252,14 +323,14 @@ export default function ComparePage({ plants, currentPlant }: Props) {
             {controllers.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </label>
-        {IS_STATIC ? (
+        {isUpload ? null : IS_STATIC ? (
           <span className="badge info" title="靜態展示版無後端，顯示預先運算的 1 天模擬結果">預先運算結果 · 1 天</span>
         ) : (
           <label>{t.compare.days}
             <input className="input num" type="number" min={0.5} max={3} step={0.5} value={days} style={{ width: 64 }} onChange={(e) => setDays(Math.max(0.5, Math.min(3, Number(e.target.value) || 1)))} />
           </label>
         )}
-        <button className="btn primary" disabled={running || !scenario || ctrlA === ctrlB} onClick={start}>{running ? `${t.compare.running} ${elapsed}s` : t.compare.start}</button>
+        <button className="btn primary" disabled={running || !scenario || ctrlA === ctrlB || (isUpload && !upload)} onClick={start}>{running ? `${t.compare.running} ${elapsed}s` : t.compare.start}</button>
         <button className="btn" onClick={() => setShowModels(true)}>AI 模型說明</button>
         <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{simPlant.name}</span>
         {ctrlA === ctrlB && <span className="badge warn">兩個控制器需不同</span>}
@@ -269,6 +340,37 @@ export default function ComparePage({ plants, currentPlant }: Props) {
           <button className={`btn small ${colorMode === 'do' ? 'on' : ''}`} onClick={() => setColorMode('do')}>{t.overview.colorDO}</button>
           <button className={`btn small ${colorMode === 'nh4' ? 'on' : ''}`} onClick={() => setColorMode('nh4')}>{t.overview.colorNH4}</button>
         </span>
+        {isUpload && (
+          <div className="upload-row">
+            <button className="btn small" onClick={() => void downloadTemplate().catch((e) => setUploadErr(`範本產生失敗：${(e as Error).message}`))}>⬇ 下載 Excel 範本</button>
+            <span className="btn small primary file-btn">
+              {parsing ? '解析中…' : '📂 選擇 Excel / CSV 檔'}
+              <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
+            </span>
+            {uploadName && <span className="upload-summary">{uploadName}</span>}
+            {upload && (
+              <>
+                <label className="upload-summary">流量單位
+                  <select className="select" value={flowUnit} onChange={(e) => setFlowUnit(e.target.value as FlowUnit)}>
+                    <option value="m3d">m³/d（CMD）</option>
+                    <option value="m3h">m³/h</option>
+                  </select>
+                </label>
+                <span className="upload-summary">
+                  共 <b>{upload.rows.length}</b> 筆 · {fmtDate(upload.start)} ～ {fmtDate(upload.end)}（<b>{fmtNum((upload.end - upload.start) / 3_600_000, 1)}</b> 小時）
+                  · 平均流量 <b>{fmtNum(upload.rows.reduce((s, r) => s + r.Q, 0) / upload.rows.length * (flowUnit === 'm3h' ? 24 : 1), 0)}</b> m³/d
+                  · 欄位：{[upload.columns.time, upload.columns.Q, upload.columns.COD, upload.columns.NH4, upload.columns.TSS].filter(Boolean).join('、')}
+                </span>
+              </>
+            )}
+            {uploadInfo && result?.summaries[0]?.scenario_id === UPLOAD && (
+              <span className="upload-summary">模擬廠規模 = BSM1 × <b>{fmtNum(uploadInfo.scale, 3)}</b>（依您的平均流量等比例縮放，停留時間與汙泥齡不變）</span>
+            )}
+            <span className="upload-summary" style={{ color: 'var(--text-3)' }}>檔案只在您的瀏覽器中處理，不會上傳到伺服器。</span>
+            {uploadErr && <span className="upload-warn" style={{ color: 'var(--danger)' }}>⚠ {uploadErr}</span>}
+            {upload?.warnings.map((w) => <span key={w} className="upload-warn">⚠ {w}</span>)}
+          </div>
+        )}
       </Panel>
 
       <div className="split">
@@ -308,7 +410,7 @@ export default function ComparePage({ plants, currentPlant }: Props) {
           value={Math.round(tRef.current)}
           onChange={(e) => { tRef.current = Number(e.target.value); setTick((x) => x + 1); }}
         />
-        <span className="time">{result ? fmtSimTime(tRef.current) : '--'}</span>
+        <span className="time">{result ? fmtSimTime(tRef.current + (result.summaries[0]?.scenario_id === UPLOAD ? uploadInfo?.clockOffsetMin ?? 0 : 0)) : '--'}</span>
       </Panel>
 
       <div className="compare-bottom">
@@ -317,6 +419,7 @@ export default function ComparePage({ plants, currentPlant }: Props) {
             <Panel title={`${t.compare.kpi}（${names[0]} → ${names[1]}）`} style={{ flex: 'none' }}>
               <KpiCards meta={kpiMeta.data} a={result.summaries[0]} b={result.summaries[1]} />
             </Panel>
+            <SavingsPanel names={names} summaries={result.summaries} states={result.states} />
             <div className="diff-charts">
               {DIFF_VARS.map((d) => (
                 <Panel key={d.key} bodyClass="nopad">

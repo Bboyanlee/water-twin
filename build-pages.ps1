@@ -6,8 +6,11 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 Push-Location "$root\backend"
 & .\.venv\Scripts\python.exe scripts\export_static.py "$root\frontend\public\data"
+& .\.venv\Scripts\python.exe scripts\export_engine.py "$root\frontend\public\data\engine"
 Pop-Location
 Push-Location "$root\frontend"
+npm run verify:engine
+if ($LASTEXITCODE -ne 0) { throw "瀏覽器模擬引擎與 Python 結果不一致" }
 npm run build:static
 Pop-Location
 foreach ($p in "assets", "data") { if (Test-Path "$root\$p") { Remove-Item -Recurse -Force "$root\$p" } }

@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "build:static": "tsc --noEmit && vite build --mode static --outDir dist-static",
     "dev:static": "vite --mode static",
+    "verify:engine": "esbuild scripts/verify-engine.ts --bundle --platform=node --format=esm --log-level=warning --outfile=scripts/.verify-engine.mjs && node scripts/.verify-engine.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

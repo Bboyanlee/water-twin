@@ -18,3 +18,4 @@ frontend/dist-static/
 frontend/public/data/
 *.log
 .DS_Store
+frontend/scripts/.verify-engine.mjs
