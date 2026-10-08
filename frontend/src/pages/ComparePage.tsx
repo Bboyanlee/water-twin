@@ -229,7 +229,7 @@ export default function ComparePage({ plants, currentPlant }: Props) {
           load={() => api.models()}
           emptyText="後端尚未提供模型資訊"
           onClose={() => setShowModels(false)}
-          intro={<p style={{ color: 'var(--text-2)', marginTop: 0 }}>AI 智慧控制以代理模型（surrogate）近似 ASM1 製程反應，再以 MPC 最佳化溶氧設定值。以下為模型特徵與驗證指標：</p>}
+          intro={<p style={{ color: 'var(--text-2)', marginTop: 0 }}>AI 智慧控制以代理模型（surrogate）預測未來 2 小時好氧槽末端的氨氮、硝酸氮與曝氣能耗，再以 MPC 每 15 分鐘最佳化溶氧設定值與內循環流量。以下為模型特徵與驗證指標：</p>}
         />
       )}
       <Panel bodyClass="compare-ctrl" style={{ flex: 'none' }}>
@@ -296,7 +296,7 @@ export default function ComparePage({ plants, currentPlant }: Props) {
         })}
       </div>
 
-      <Panel bodyClass="timeline" style={{ flex: 'none' }}>
+      <Panel className="timeline-bar" bodyClass="timeline" style={{ flex: 'none' }}>
         <button className="btn" disabled={!result} onClick={() => {
           if (tRef.current >= tMax) tRef.current = 0;
           setPlaying((p) => !p);

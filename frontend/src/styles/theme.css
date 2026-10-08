@@ -273,7 +273,10 @@ button, select, input { font-family: inherit; }
 @keyframes alarmBlink { 50% { opacity: .35; } }
 
 /* ===== Compare ===== */
-.compare { display: grid; grid-template-rows: auto minmax(300px, 1fr) auto auto; gap: var(--gap); height: 100%; }
+/* 頁面可捲動，不再以固定高度擠壓：避免控制列（含「AI 模型說明」）與播放列被 3D 場景蓋住 */
+.compare { display: grid; grid-template-rows: auto clamp(360px, 56vh, 760px) auto auto; gap: var(--gap); min-height: 100%; }
+.compare > .panel { min-height: min-content; }
+.compare > .timeline-bar { position: sticky; bottom: calc(-1 * var(--gap)); z-index: 20; background: var(--panel-bg-strong); }
 .compare-ctrl { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 10px 14px; }
 .compare-ctrl label { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); min-height: 0; }
