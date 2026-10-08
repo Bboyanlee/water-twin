@@ -273,9 +273,17 @@ button, select, input { font-family: inherit; }
 @keyframes alarmBlink { 50% { opacity: .35; } }
 
 /* ===== Compare ===== */
-/* 頁面可捲動，不再以固定高度擠壓：避免控制列（含「AI 模型說明」）與播放列被 3D 場景蓋住 */
-.compare { display: grid; grid-template-rows: auto clamp(360px, 56vh, 760px) auto auto; gap: var(--gap); min-height: 100%; }
-.compare > .panel { min-height: min-content; }
+/* 3D 區填滿剩餘高度（下方區塊收合時自動變大），至少 360px；內容超過時頁面捲動而不擠壓控制列與播放列 */
+.compare { display: flex; flex-direction: column; gap: var(--gap); min-height: 100%; }
+.compare > * { flex: none; }
+.compare > .split { flex: 1 0 320px; }
+.panel.collapsed .panel-body { display: none; }
+.panel.collapsed .panel-title { border-bottom: 0; }
+.section-toggle { background: none; border: 0; padding: 0; color: inherit; font: inherit; letter-spacing: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-align: left; }
+.section-toggle:hover { color: var(--cyan); }
+.section-toggle .caret { color: var(--cyan); width: 12px; display: inline-block; }
+.collapsed-summary { color: var(--cyan); font-family: var(--font-mono); font-size: 12px; }
+.section-chips { display: inline-flex; gap: 6px; padding-left: 10px; border-left: 1px solid var(--cyan-faint); }
 .compare > .timeline-bar { position: sticky; bottom: calc(-1 * var(--gap)); z-index: 20; background: var(--panel-bg-strong); }
 .compare-ctrl { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 10px 14px; }
 .compare-ctrl label { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
@@ -297,7 +305,7 @@ button, select, input { font-family: inherit; }
 .kpi-card .delta.good { color: var(--ok); text-shadow: 0 0 8px rgba(43, 217, 159, .5); }
 .kpi-card .delta.bad { color: var(--danger); text-shadow: var(--glow-danger); }
 .kpi-card .delta.same { color: var(--text-2); }
-.diff-charts { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); height: 190px; }
+.diff-charts { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); height: 180px; padding: 8px; }
 .kpi-row { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 .kpi-card { padding: 4px 8px; }
 .compare-bottom { display: grid; grid-template-columns: 1fr; gap: var(--gap); }

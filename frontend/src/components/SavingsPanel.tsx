@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { RunStates, RunSummary } from '../api/types';
-import { Panel } from './Panel';
+import { Panel, SectionToggle } from './Panel';
 import { fmtNum } from '../lib/vars';
 
 // 預設值（可在畫面上修改）：
@@ -22,9 +22,9 @@ const mean = (a: (number | null)[] | undefined) => {
   return v.length ? v.reduce((s, x) => s + x, 0) / v.length : 0;
 };
 
-interface Props { names: string[]; summaries: RunSummary[]; states: RunStates[] }
+interface Props { names: string[]; summaries: RunSummary[]; states: RunStates[]; open: boolean; onToggle: () => void }
 
-export default function SavingsPanel({ names, summaries, states }: Props) {
+export default function SavingsPanel({ names, summaries, states, open, onToggle }: Props) {
   const [prefs, setPrefs] = useState(loadPrefs);
   const simQ = useMemo(() => mean(states[0]?.series['INF.Q']), [states]);
   const [flow, setFlow] = useState<number>(Math.round(simQ));
@@ -52,11 +52,14 @@ export default function SavingsPanel({ names, summaries, states }: Props) {
 
   return (
     <Panel
-      title={`AI 量化效益估算（${names[1]} 相對於 ${names[0]}）`}
+      className={open ? '' : 'collapsed'}
+      title={<SectionToggle open={open} onToggle={onToggle}>AI 量化效益估算（{names[1]} 相對於 {names[0]}）</SectionToggle>}
       style={{ flex: 'none' }}
-      extra={<span title="以模擬期間的平均日能耗外推一年；能耗依處理量等比例換算">年化估算 · 可調整參數</span>}
+      extra={open
+        ? <span title="以模擬期間的平均日能耗外推一年；能耗依處理量等比例換算">年化估算 · 可調整參數</span>
+        : <span className="collapsed-summary">每年{saving ? '節省' : '增加'} NT$ {fmtNum(Math.abs(money) / 10000, 1)} 萬 · {saving ? '減碳' : '增碳'} {fmtNum(Math.abs(co2), 1)} tCO₂e · 用電 {saving ? '−' : '+'}{fmtNum(Math.abs(pct), 1)}%</span>}
     >
-      <div className="savings">
+      {open && <div className="savings">
         <div className="savings-inputs">
           <label>電價（元/度）{num(prefs.price, (price) => setPrefs((p) => ({ ...p, price })), 0.01)}</label>
           <label>電力排碳係數（kgCO₂e/度）{num(prefs.ef, (ef) => setPrefs((p) => ({ ...p, ef })), 0.001)}</label>
@@ -86,7 +89,7 @@ export default function SavingsPanel({ names, summaries, states }: Props) {
             <div className="sub">{eqiPct === null ? '' : eqiPct <= 0 ? '放流汙染負荷降低（未計入金額）' : '放流汙染負荷增加（未計入金額）'}</div>
           </div>
         </div>
-      </div>
+      </div>}
     </Panel>
   );
 }

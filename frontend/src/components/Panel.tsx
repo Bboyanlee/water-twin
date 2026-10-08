@@ -24,6 +24,15 @@ export function Panel({ title, extra, children, className = '', style, bodyClass
   );
 }
 
+/** 可收合區塊的標題按鈕（放在 Panel 的 title） */
+export function SectionToggle({ open, onToggle, children }: { open: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <button type="button" className="section-toggle" aria-expanded={open} onClick={onToggle} title={open ? '點擊收合' : '點擊展開'}>
+      <span className="caret">{open ? '▾' : '▸'}</span>{children}
+    </button>
+  );
+}
+
 export function Loading({ text = t.status.loading }: { text?: string }) {
   return (
     <div className="loading-box">

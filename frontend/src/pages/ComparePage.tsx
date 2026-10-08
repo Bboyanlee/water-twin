@@ -5,7 +5,7 @@ import { api, IS_STATIC } from '../api/client';
 import type { KpiMeta, Plant, RunStates, RunSummary, VarDict } from '../api/types';
 import { useAsync } from '../hooks/useAsync';
 import { t, fmt } from '../i18n';
-import { Empty, Loading, Panel } from '../components/Panel';
+import { Empty, Loading, Panel, SectionToggle } from '../components/Panel';
 import Chart from '../charts/Chart';
 import ErrorBoundary from '../components/ErrorBoundary';
 import InfoModal from '../components/InfoModal';
@@ -17,6 +17,27 @@ import type { WorkerMessage, WorkerRequest } from '../engine/worker';
 import type { ControllerId } from '../engine/controllers';
 
 const UPLOAD = '__upload';
+
+// 下方三個可收合區塊（狀態記在瀏覽器，下次開啟沿用）
+type SectionKey = 'kpi' | 'savings' | 'charts';
+type SectionState = Record<SectionKey, boolean>;
+const SECTIONS: [SectionKey, string][] = [['kpi', 'KPI 對比'], ['savings', '效益估算'], ['charts', '差異曲線']];
+const SECTIONS_KEY = 'wt.compare.sections.v1';
+function loadSections(): SectionState {
+  try {
+    const v = JSON.parse(localStorage.getItem(SECTIONS_KEY) ?? 'null');
+    if (v && typeof v.kpi === 'boolean') return { kpi: v.kpi, savings: !!v.savings, charts: !!v.charts };
+  } catch { /* ignore */ }
+  return { kpi: true, savings: true, charts: true };
+}
+
+function kpiSummary(s: RunSummary[]) {
+  const d = (k: string) => {
+    const a = s[0]?.kpis[k], b = s[1]?.kpis[k];
+    return typeof a === 'number' && typeof b === 'number' && Math.abs(a) > 1e-9 ? `${b > a ? '+' : ''}${(((b - a) / Math.abs(a)) * 100).toFixed(1)}%` : '—';
+  };
+  return `EQI ${d('EQI')} · 總能耗 ${d('total_energy_kWh_d')} · 放流氨氮 ${d('eff_SNH_avg')} · 放流總氮 ${d('eff_TN_avg')}`;
+}
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const fmtDate = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
 
@@ -167,6 +188,12 @@ export default function ComparePage({ plants, currentPlant }: Props) {
   const [parsing, setParsing] = useState(false);
   const [flowUnit, setFlowUnit] = useState<FlowUnit>('m3d');
   const [uploadInfo, setUploadInfo] = useState<{ scale: number; meanQ: number; minutes: number; clockOffsetMin: number } | null>(null);
+  const [open, setOpen] = useState<SectionState>(loadSections);
+  const toggle = (k: SectionKey) => setOpen((o) => {
+    const n = { ...o, [k]: !o[k] };
+    try { localStorage.setItem(SECTIONS_KEY, JSON.stringify(n)); } catch { /* 無痕視窗等情況 */ }
+    return n;
+  });
   const [source, setSource] = useState<'preset' | 'upload'>('preset');
   const isUpload = source === 'upload';
 
@@ -417,22 +444,44 @@ export default function ComparePage({ plants, currentPlant }: Props) {
           onChange={(e) => { tRef.current = Number(e.target.value); setTick((x) => x + 1); }}
         />
         <span className="time">{result ? fmtSimTime(tRef.current + (result.summaries[0]?.scenario_id === UPLOAD ? uploadInfo?.clockOffsetMin ?? 0 : 0)) : '--'}</span>
+        {result && (
+          <span className="section-chips" title="展開／收合下方區塊，搭配上方 3D 畫面一起看">
+            {SECTIONS.map(([k, label]) => (
+              <button key={k} className={`btn small ${open[k] ? 'on' : ''}`} aria-pressed={open[k]} onClick={() => toggle(k)}>{open[k] ? '▾' : '▸'} {label}</button>
+            ))}
+          </span>
+        )}
       </Panel>
 
       <div className="compare-bottom">
         {result && kpiMeta.data ? (
           <>
-            <Panel title={`${t.compare.kpi}（${names[0]} → ${names[1]}）`} style={{ flex: 'none' }}>
-              <KpiCards meta={kpiMeta.data} a={result.summaries[0]} b={result.summaries[1]} />
+            <Panel
+              className={open.kpi ? '' : 'collapsed'}
+              style={{ flex: 'none' }}
+              title={<SectionToggle open={open.kpi} onToggle={() => toggle('kpi')}>{t.compare.kpi}（{names[0]} → {names[1]}）</SectionToggle>}
+              extra={!open.kpi && <span className="collapsed-summary">{kpiSummary(result.summaries)}</span>}
+            >
+              {open.kpi && <KpiCards meta={kpiMeta.data} a={result.summaries[0]} b={result.summaries[1]} />}
             </Panel>
-            <SavingsPanel names={names} summaries={result.summaries} states={result.states} />
-            <div className="diff-charts">
-              {DIFF_VARS.map((d) => (
-                <Panel key={d.key} bodyClass="nopad">
-                  <DiffChart def={d} runs={result.states} names={names} tRef={tRef} tick={tick} />
-                </Panel>
-              ))}
-            </div>
+            <SavingsPanel names={names} summaries={result.summaries} states={result.states} open={open.savings} onToggle={() => toggle('savings')} />
+            <Panel
+              className={open.charts ? '' : 'collapsed'}
+              style={{ flex: 'none' }}
+              bodyClass="nopad"
+              title={<SectionToggle open={open.charts} onToggle={() => toggle('charts')}>差異曲線（<span style={{ color: COLOR_A }}>{names[0]}</span> vs <span style={{ color: COLOR_B }}>{names[1]}</span>，橘線為目前播放時間）</SectionToggle>}
+              extra={!open.charts && <span className="collapsed-summary">{DIFF_VARS.map((d) => d.label).join('、')}</span>}
+            >
+              {open.charts && (
+                <div className="diff-charts">
+                  {DIFF_VARS.map((d) => (
+                    <Panel key={d.key} bodyClass="nopad">
+                      <DiffChart def={d} runs={result.states} names={names} tRef={tRef} tick={tick} />
+                    </Panel>
+                  ))}
+                </div>
+              )}
+            </Panel>
           </>
         ) : kpiMeta.loading ? <Loading /> : null}
       </div>
