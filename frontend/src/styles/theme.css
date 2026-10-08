@@ -313,6 +313,11 @@ button, select, input { font-family: inherit; }
 .saving-card .sub { color: var(--text-3); font-size: 12px; }
 .saving-card.good .v { color: var(--ok); text-shadow: 0 0 10px rgba(43, 217, 159, .45); }
 .saving-card.bad .v { color: var(--danger); text-shadow: var(--glow-danger); }
+.source-switch { display: inline-flex; border: 1px solid var(--panel-border-strong); border-radius: 4px; overflow: hidden; box-shadow: var(--glow-cyan); }
+.source-switch button { background: rgba(4, 16, 36, .85); color: var(--text-2); border: 0; padding: 7px 16px; font-size: 14px; font-weight: 700; letter-spacing: .5px; cursor: pointer; font-family: inherit; }
+.source-switch button + button { border-left: 1px solid var(--panel-border-strong); }
+.source-switch button:hover { color: var(--text-1); }
+.source-switch button.on { color: #001b26; background: linear-gradient(180deg, var(--cyan), var(--cyan-2)); }
 .upload-row { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding-top: 8px; border-top: 1px dashed var(--cyan-faint); }
 .upload-row .file-btn { position: relative; overflow: hidden; }
 .upload-row .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

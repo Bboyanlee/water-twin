@@ -167,7 +167,8 @@ export default function ComparePage({ plants, currentPlant }: Props) {
   const [parsing, setParsing] = useState(false);
   const [flowUnit, setFlowUnit] = useState<FlowUnit>('m3d');
   const [uploadInfo, setUploadInfo] = useState<{ scale: number; meanQ: number; minutes: number; clockOffsetMin: number } | null>(null);
-  const isUpload = scenario === UPLOAD;
+  const [source, setSource] = useState<'preset' | 'upload'>('preset');
+  const isUpload = source === 'upload';
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
@@ -303,16 +304,21 @@ export default function ComparePage({ plants, currentPlant }: Props) {
         />
       )}
       <Panel bodyClass="compare-ctrl" style={{ flex: 'none' }}>
-        <label>{t.compare.scenario}
-          <select className="select" value={scenario} onChange={(e) => {
-            setScenario(e.target.value);
-            const sc = scenarios.data?.find((s) => s.id === e.target.value);
-            if (sc) setDays(Math.min(3, sc.default_days || 1));
-          }}>
-            {scenarios.data?.map((s) => <option key={s.id} value={s.id} title={s.description}>{s.name}</option>)}
-            <option value={UPLOAD}>📂 上傳我的進流資料（Excel）</option>
-          </select>
-        </label>
+        <div className="source-switch" role="tablist" aria-label="模擬資料來源">
+          <button role="tab" aria-selected={!isUpload} className={!isUpload ? 'on' : ''} onClick={() => setSource('preset')}>📊 預設情境</button>
+          <button role="tab" aria-selected={isUpload} className={isUpload ? 'on' : ''} onClick={() => setSource('upload')}>📂 上傳我的資料（Excel）</button>
+        </div>
+        {!isUpload && (
+          <label>{t.compare.scenario}
+            <select className="select" value={scenario} onChange={(e) => {
+              setScenario(e.target.value);
+              const sc = scenarios.data?.find((s) => s.id === e.target.value);
+              if (sc) setDays(Math.min(3, sc.default_days || 1));
+            }}>
+              {scenarios.data?.map((s) => <option key={s.id} value={s.id} title={s.description}>{s.name}</option>)}
+            </select>
+          </label>
+        )}
         <label><span style={{ color: COLOR_A }}>■</span> {t.compare.controllerA}
           <select className="select" value={ctrlA} onChange={(e) => setCtrlA(e.target.value)}>
             {controllers.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -330,7 +336,7 @@ export default function ComparePage({ plants, currentPlant }: Props) {
             <input className="input num" type="number" min={0.5} max={3} step={0.5} value={days} style={{ width: 64 }} onChange={(e) => setDays(Math.max(0.5, Math.min(3, Number(e.target.value) || 1)))} />
           </label>
         )}
-        <button className="btn primary" disabled={running || !scenario || ctrlA === ctrlB || (isUpload && !upload)} onClick={start}>{running ? `${t.compare.running} ${elapsed}s` : t.compare.start}</button>
+        <button className="btn primary" disabled={running || ctrlA === ctrlB || (isUpload ? !upload : !scenario)} onClick={start}>{running ? `${t.compare.running} ${elapsed}s` : t.compare.start}</button>
         <button className="btn" onClick={() => setShowModels(true)}>AI 模型說明</button>
         <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{simPlant.name}</span>
         {ctrlA === ctrlB && <span className="badge warn">兩個控制器需不同</span>}
@@ -380,7 +386,7 @@ export default function ComparePage({ plants, currentPlant }: Props) {
           return (
             <div className="scene-wrap" key={i}>
               {result && <div className={`split-tag ${i ? 'b' : 'a'}`}>{names[i]}</div>}
-              {running ? <Loading text={`${phase}　已經過 ${elapsed} 秒`} /> : !result ? <Empty text={t.compare.hint} /> : layout.error ? <Empty error={layout.error} /> : sceneProps && run && (
+              {running ? <Loading text={`${phase}　已經過 ${elapsed} 秒`} /> : !result ? <Empty text={isUpload ? '① 下載 Excel 範本並填入您的進流資料　② 選擇檔案　③ 按「開始模擬」' : `${t.compare.hint}；也可點左上「📂 上傳我的資料」用自己的進流資料模擬`} /> : layout.error ? <Empty error={layout.error} /> : sceneProps && run && (
                 <ErrorBoundary>
                   <PlantScene {...sceneProps} getVars={i ? getB : getA} />
                 </ErrorBoundary>
