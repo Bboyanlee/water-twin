@@ -1,0 +1,1 @@
+[{"id":"dry","name":"晴天日變化","description":"典型旱季日變化：清晨低流量、上午與傍晚尖峰。","default_days":1},{"id":"storm","name":"暴雨事件","description":"第 1 天 09:00–15:00 降雨，流量增至約 2.5 倍，溶解性汙染物被稀釋、初期沖刷懸浮物增加。","default_days":1},{"id":"nh4_shock","name":"氨氮衝擊負荷","description":"10:00–16:00 進流氨氮升高約 2.2 倍（模擬上游事業高氨氮排放）。","default_days":1}]

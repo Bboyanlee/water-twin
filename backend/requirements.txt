@@ -1,0 +1,14 @@
+numpy==2.2.6
+scipy
+fastapi==0.142.4
+uvicorn[standard]
+sqlalchemy==2.0.54
+pydantic>=2
+scikit-learn==1.7.2
+joblib
+pandas
+python-multipart
+# PostgreSQL/TimescaleDB driver for the cloud: pip install "psycopg[binary]"
+# dev
+pytest
+httpx

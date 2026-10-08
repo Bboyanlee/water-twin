@@ -1,0 +1,21 @@
+# Cloud-ready stack (not yet tested: Docker is not installed on the development machine).
+# Local development currently runs without Docker (SQLite + uvicorn + Vite), see README.md.
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_USER: water
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      POSTGRES_DB: water_twin
+    volumes: [dbdata:/var/lib/postgresql/data]
+  api:
+    build: ./backend
+    environment:
+      WT_DATABASE_URL: postgresql+psycopg://water:${DB_PASSWORD}@db:5432/water_twin
+      WT_CORS_ORIGINS: ${WT_CORS_ORIGINS:-http://localhost:8080}
+    volumes: [apidata:/data]
+    depends_on: [db]
+    ports: ["8000:8000"]
+volumes:
+  dbdata:
+  apidata:

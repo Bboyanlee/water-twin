@@ -1,0 +1,20 @@
+# secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# dependencies / environments
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+
+# generated
+backend/data/
+frontend/dist/
+frontend/dist-static/
+frontend/public/data/
+*.log
+.DS_Store
